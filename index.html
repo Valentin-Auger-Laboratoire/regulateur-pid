@@ -1,0 +1,467 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Régulateur PID</title>
+  <meta name="description" content="Régulateur PID interactif : moteur à courant continu, couveuse de néonatologie et axe de robot ; réponse à un échelon, perturbation, saturation, anti-emballement, diagrammes de Bode, marges de stabilité et réglages de Ziegler-Nichols.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #0c0c0d; --panel: #161618; --border: #262628; --border-hi: #3a3a3d;
+      --text: #f2f2f2; --dim: #9b9b9f; --muted: #6c6c70; --accent: #c8102e; --line: #c9c9cc; --warn: #e0a458; --ok: #8fd18f;
+      --mono: "JetBrains Mono", ui-monospace, monospace; --sans: "Inter", system-ui, sans-serif;
+      color-scheme: dark;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: var(--bg); color: var(--text); font-family: var(--sans); line-height: 1.55; -webkit-font-smoothing: antialiased; }
+    .wrap { max-width: 1280px; margin: 0 auto; padding: 24px max(16px, env(safe-area-inset-right, 0px)) 48px max(16px, env(safe-area-inset-left, 0px)); }
+    .top { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 24px; }
+    .back { font-size: 0.9rem; color: var(--dim); text-decoration: none; }
+    .back:hover { color: var(--accent); }
+    .lang { display: flex; border: 1px solid var(--border-hi); }
+    .lang button { font: 500 0.78rem var(--mono); letter-spacing: .05em; background: none; color: var(--dim); border: 0; padding: 5px 10px; cursor: pointer; }
+    .lang button + button { border-left: 1px solid var(--border-hi); }
+    .lang button[aria-pressed="true"] { background: var(--text); color: var(--bg); }
+    .eyebrow { font: 500 0.82rem var(--mono); color: var(--accent); letter-spacing: .04em; }
+    h1 { font-size: clamp(1.6rem, 3.4vw, 2.3rem); line-height: 1.15; margin: 6px 0 10px; text-wrap: balance; }
+    .intro { color: var(--dim); max-width: 82ch; }
+    .tabs { display: flex; gap: 8px; margin: 26px 0 16px; flex-wrap: wrap; }
+    .tab { font: 0.85rem var(--mono); background: none; color: var(--dim); border: 1px solid var(--border); border-radius: 999px; padding: 6px 14px; cursor: pointer; }
+    .tab[aria-selected="true"] { color: var(--accent); border-color: var(--accent); }
+    [hidden] { display: none !important; }
+    .grid { display: grid; grid-template-columns: 340px minmax(0, 1fr); gap: 20px; align-items: start; }
+    .stack { display: grid; gap: 16px; min-width: 0; }
+    .panel { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 16px; min-width: 0; }
+    h2 { font: 600 0.78rem var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--dim); margin-bottom: 12px; }
+    h3 { font: 600 0.72rem var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--dim); margin: 14px 0 10px; padding-top: 12px; border-top: 1px solid var(--border); }
+    button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+    .btn { font: 500 0.82rem var(--sans); background: none; color: var(--text); border: 1px solid var(--border-hi); border-radius: 6px; padding: 6px 11px; cursor: pointer; white-space: nowrap; }
+    .btn:hover { border-color: var(--accent); color: var(--accent); }
+    .btn:disabled { opacity: .4; cursor: not-allowed; border-color: var(--border); color: var(--dim); }
+    .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+    .ctl { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 2px 10px; align-items: center; margin-bottom: 10px; }
+    .ctl label { font: 500 0.76rem var(--mono); color: var(--dim); }
+    .ctl output { font: 0.8rem var(--mono); font-variant-numeric: tabular-nums; text-align: right; }
+    .ctl input[type=range] { grid-column: 1 / -1; width: 100%; accent-color: var(--accent); }
+    .ctl input[type=checkbox] { accent-color: var(--accent); }
+    label.ck { display: flex; gap: 8px; align-items: center; font-size: 0.86rem; cursor: pointer; margin-bottom: 8px; }
+    label.ck input { accent-color: var(--accent); }
+    .kpis { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 10px; }
+    .kpi { border: 1px solid var(--border); border-radius: 6px; padding: 9px 11px; min-width: 0; }
+    .kpi dt { font: 0.68rem var(--mono); color: var(--dim); }
+    .kpi dd { font: 600 1.05rem var(--sans); font-variant-numeric: tabular-nums; margin-top: 2px; overflow-wrap: anywhere; }
+    .kpi dd small { font: 400 0.72rem var(--mono); color: var(--dim); margin-left: 3px; }
+    .kpi.bad dd { color: #ff8a8a; } .kpi.good dd { color: var(--ok); }
+    .top2 { display: grid; grid-template-columns: 240px minmax(0, 1fr); gap: 12px; margin-top: 12px; }
+    .scene { width: 100%; height: 250px; display: block; border: 1px solid var(--border); border-radius: 6px; background: #0a0a0b; }
+    .chart { min-width: 0; }
+    .chart p { font: 0.72rem var(--mono); color: var(--dim); margin-bottom: 4px; display: flex; gap: 10px; flex-wrap: wrap; }
+    .chart p i { display: inline-block; width: 12px; height: 2px; vertical-align: 3px; margin-right: 5px; }
+    .chart canvas { width: 100%; height: 190px; display: block; border: 1px solid var(--border); border-radius: 6px; background: #0a0a0b; }
+    .big canvas { height: 250px; }
+    .charts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+    .controls { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-top: 10px; font: 0.78rem var(--mono); color: var(--dim); }
+    .issues { list-style: none; display: grid; gap: 6px; margin-top: 12px; }
+    .issues li { font-size: 0.85rem; display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 10px; align-items: baseline; padding: 7px 10px; border: 1px solid var(--border); border-radius: 6px; }
+    .issues .lv { font: 600 0.68rem var(--mono); text-transform: uppercase; padding: 1px 6px; border-radius: 3px; border: 1px solid var(--warn); color: var(--warn); }
+    .issues .err .lv { background: var(--accent); border-color: var(--accent); color: #fff; }
+    .issues .good { display: block; color: var(--ok); border-color: #2e4a2e; }
+    .hint { font-size: 0.8rem; color: var(--dim); margin-top: 8px; }
+    .note { font-size: 0.82rem; color: var(--dim); }
+    .note p + p { margin-top: 6px; }
+    .presets { display: flex; flex-wrap: wrap; gap: 6px; }
+    @media (max-width: 1100px) { .kpis { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+    @media (max-width: 1000px) { .grid { grid-template-columns: minmax(0, 1fr); } .main-col { order: -1; } }
+    @media (max-width: 700px) { .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); } .charts, .top2 { grid-template-columns: minmax(0, 1fr); } }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="top">
+      <a class="back" href="https://valentin-auger-laboratoire.github.io/portfolio/#projets" data-t="back">← Retour au portfolio</a>
+      <div class="lang" role="group" aria-label="Langue / Language">
+        <button type="button" data-lang="fr" aria-pressed="true">FR</button>
+        <button type="button" data-lang="en" aria-pressed="false">EN</button>
+      </div>
+    </div>
+    <p class="eyebrow" data-t="eyebrow">Outil d'automatique · régulation PID</p>
+    <h1 data-t="title">Régulateur PID : régler, tester, vérifier la stabilité</h1>
+    <p class="intro" data-t="intro">Trois systèmes à réguler : la vitesse d'un moteur à courant continu, la température d'une couveuse de néonatologie et la position d'un axe de robot. On règle les gains P, I et D et on voit tout de suite la réponse à un changement de consigne, puis à une perturbation (charge sur le moteur, porte de la couveuse ouverte). L'outil donne les performances, les diagrammes de Bode, les marges de stabilité et les réglages classiques de Ziegler-Nichols. La commande est limitée comme sur un vrai système (24 V, 100 % de chauffe), avec ou sans anti-emballement de l'intégrale.</p>
+
+    <div class="tabs" role="tablist">
+      <button type="button" class="tab" role="tab" data-plant="motor" aria-selected="true" data-t="tMotor">Vitesse d'un moteur</button>
+      <button type="button" class="tab" role="tab" data-plant="incubator" aria-selected="false" data-t="tInc">Température d'une couveuse</button>
+      <button type="button" class="tab" role="tab" data-plant="axis" aria-selected="false" data-t="tAxis">Position d'un axe de robot</button>
+    </div>
+
+    <div class="grid">
+      <div class="stack">
+        <div class="panel" id="gainsPanel"></div>
+        <div class="panel" id="tunePanel"></div>
+        <div class="panel" id="optPanel"></div>
+      </div>
+      <div class="stack main-col">
+        <div class="panel">
+          <dl class="kpis" id="kpis"></dl>
+          <div class="top2">
+            <canvas class="scene" id="scene" aria-label="Système"></canvas>
+            <div class="chart big"><p><span><i style="background:var(--accent)"></i><span data-t="lgY">mesure</span></span><span><i style="background:var(--line)"></i><span data-t="lgR">consigne</span></span><span><i style="background:#6c6c70"></i><span data-t="lgGhost">réglage figé</span></span></p><canvas id="chY"></canvas></div>
+          </div>
+          <div class="controls"><button type="button" class="btn" id="play" data-t="replay">Rejouer</button><button type="button" class="btn" id="freeze" data-t="freeze">Figer cette courbe pour comparer</button><span id="replayInfo"></span></div>
+          <ul class="issues" id="issues"></ul>
+        </div>
+        <div class="panel charts">
+          <div class="chart"><p><span><i style="background:var(--warn)"></i><span data-t="lgU">commande</span></span><span><i style="background:#4a4a4e"></i><span data-t="lgSat">limites de la commande</span></span></p><canvas id="chU"></canvas></div>
+          <div class="chart"><p><span><i style="background:var(--accent)"></i>P</span><span><i style="background:#7fbf7f"></i>I</span><span><i style="background:#c77dba"></i>D</span> · <span data-t="lgStep">Les trois actions séparées (P, I, D)</span></p><canvas id="chPID"></canvas></div>
+          <div class="chart"><p><span><i style="background:var(--accent)"></i><span data-t="lgL">boucle ouverte C·G</span></span><span><i style="background:#8a8a90"></i><span data-t="lgG">procédé seul G</span></span> · <span data-t="gainDb">gain (dB)</span></p><canvas id="chMag"></canvas></div>
+          <div class="chart"><p><span data-t="phaseDeg">phase (°)</span> · <span data-t="pmHint">marge de phase lue à 0 dB</span></p><canvas id="chPh"></canvas></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel note" style="margin-top:20px">
+      <p data-t="note1">Simulation : les équations du procédé sont intégrées par Runge-Kutta d'ordre 4 entre deux instants d'échantillonnage du régulateur, qui est numérique (commande maintenue constante entre deux calculs). Le PID est écrit sous forme parallèle u = Kp·e + Ki·∫e + Kd·d(−y)/dt, avec la dérivée prise sur la mesure (pas de coup de commande quand la consigne change) et filtrée. L'anti-emballement arrête l'intégration quand la commande est saturée.</p>
+      <p data-t="note2">Stabilité : la réponse en fréquence est calculée sur les fonctions de transfert linéaires (le retard pur de la couveuse est exact, en e^(−θs)). La marge de phase est lue où le gain de la boucle ouverte vaut 0 dB, la marge de gain où la phase vaut −180°. Ziegler-Nichols utilise le gain critique Ku et la période critique Tu du procédé, calculés à partir de la phase de G. Les paramètres des procédés sont des valeurs plausibles, pas ceux d'un matériel particulier.</p>
+    </div>
+  </div>
+
+  <script src="pid.js"></script>
+  <script>
+  (function () {
+    'use strict';
+    const P = window.PID;
+    const $ = (id) => document.getElementById(id);
+
+    const T = {
+      fr: {
+        back: '← Retour au portfolio', eyebrow: "Outil d'automatique · régulation PID", title: 'Régulateur PID : régler, tester, vérifier la stabilité',
+        intro: "Trois systèmes à réguler : la vitesse d'un moteur à courant continu, la température d'une couveuse de néonatologie et la position d'un axe de robot. On règle les gains P, I et D et on voit tout de suite la réponse à un changement de consigne, puis à une perturbation (charge sur le moteur, porte de la couveuse ouverte). L'outil donne les performances, les diagrammes de Bode, les marges de stabilité et les réglages classiques de Ziegler-Nichols. La commande est limitée comme sur un vrai système (24 V, 100 % de chauffe), avec ou sans anti-emballement de l'intégrale.",
+        tMotor: "Vitesse d'un moteur", tInc: "Température d'une couveuse", tAxis: "Position d'un axe de robot",
+        lgY: 'mesure', lgR: 'consigne', lgGhost: 'réglage figé', lgU: 'commande', lgSat: 'limites de la commande', lgStep: 'Les trois actions séparées (P, I, D)',
+        lgL: 'boucle ouverte C·G', lgG: 'procédé seul G', gainDb: 'gain (dB)', phaseDeg: 'phase (°)', pmHint: 'marge de phase lue à 0 dB',
+        replay: 'Rejouer', freeze: 'Figer cette courbe pour comparer', unfreeze: 'Effacer la courbe figée',
+        note1: "Simulation : les équations du procédé sont intégrées par Runge-Kutta d'ordre 4 entre deux instants d'échantillonnage du régulateur, qui est numérique (commande maintenue constante entre deux calculs). Le PID est écrit sous forme parallèle u = Kp·e + Ki·∫e + Kd·d(−y)/dt, avec la dérivée prise sur la mesure (pas de coup de commande quand la consigne change) et filtrée. L'anti-emballement arrête l'intégration quand la commande est saturée.",
+        note2: "Stabilité : la réponse en fréquence est calculée sur les fonctions de transfert linéaires (le retard pur de la couveuse est exact, en e^(−θs)). La marge de phase est lue où le gain de la boucle ouverte vaut 0 dB, la marge de gain où la phase vaut −180°. Ziegler-Nichols utilise le gain critique Ku et la période critique Tu du procédé, calculés à partir de la phase de G. Les paramètres des procédés sont des valeurs plausibles, pas ceux d'un matériel particulier.",
+        gainsT: 'Gains du régulateur', tuneT: 'Réglages automatiques', optT: 'Essai',
+        zn: 'Ziegler-Nichols (PID)', znpi: 'Ziegler-Nichols (PI)', tl: 'Tyreus-Luyben (plus doux)', nos: 'ZN « peu de dépassement »', imc: 'IMC (λ = 200 s)', manual: 'Réglage manuel conseillé', ponly: 'P seul',
+        noZN: "Ziegler-Nichols ne s'applique pas : la phase du procédé n'atteint jamais −180°, il ne peut pas osciller en boucle fermée avec un simple gain.",
+        ku: 'Gain critique Ku', tu: 'Période critique Tu',
+        aw: "Anti-emballement de l'intégrale", dist: 'Perturbation', noise: 'Bruit de mesure', setp: 'Consigne', N: 'Filtre de la dérivée N',
+        distMotor: 'couple de charge à t = 0,8 s', distInc: 'porte ouverte 2 min à t = 30 min', distAxis: 'charge sur l’axe à t = 1,6 s',
+        kOs: 'Dépassement', kRise: 'Temps de montée', kSet: 'Temps de réponse à 2 %', kEss: 'Erreur à la fin', kPm: 'Marge de phase', kGm: 'Marge de gain',
+        unstable: 'Instable : la mesure diverge ou oscille sans s’amortir. Baisser les gains.', lowPm: 'Marge de phase faible (< 30°) : la réponse oscille beaucoup, le réglage est fragile.',
+        bigOs: 'Dépassement important : dangereux pour une couveuse (le bébé aurait trop chaud) ou un axe (choc en fin de course).',
+        sat: 'La commande est saturée une partie du temps : sans anti-emballement, l’intégrale grossit et provoque un dépassement.',
+        ess: 'Erreur statique : sans action intégrale, la mesure n’atteint pas exactement la consigne.',
+        good: 'Réponse stable et bien amortie.', none: 'aucune', inf: '∞',
+      },
+      en: {
+        back: '← Back to portfolio', eyebrow: 'Control engineering tool · PID control', title: 'PID controller: tune, test, check stability',
+        intro: 'Three systems to control: the speed of a DC motor, the temperature of a neonatal incubator and the position of a robot axis. Tune the P, I and D gains and see at once the response to a setpoint change, then to a disturbance (load on the motor, incubator door opened). The tool gives the performance figures, Bode plots, stability margins and the classic Ziegler-Nichols tunings. The command is limited as on a real system (24 V, 100% heating), with or without integrator anti-windup.',
+        tMotor: 'Motor speed', tInc: 'Incubator temperature', tAxis: 'Robot axis position',
+        lgY: 'measurement', lgR: 'setpoint', lgGhost: 'frozen tuning', lgU: 'command', lgSat: 'command limits', lgStep: 'The three actions separately (P, I, D)',
+        lgL: 'open loop C·G', lgG: 'plant alone G', gainDb: 'gain (dB)', phaseDeg: 'phase (°)', pmHint: 'phase margin read at 0 dB',
+        replay: 'Replay', freeze: 'Freeze this curve to compare', unfreeze: 'Clear the frozen curve',
+        note1: 'Simulation: the plant equations are integrated with 4th-order Runge-Kutta between two sampling instants of the controller, which is digital (command held constant between two computations). The PID is written in parallel form u = Kp·e + Ki·∫e + Kd·d(−y)/dt, with the derivative taken on the measurement (no command kick when the setpoint changes) and filtered. Anti-windup stops integrating while the command is saturated.',
+        note2: 'Stability: the frequency response is computed on the linear transfer functions (the incubator dead time is exact, as e^(−θs)). The phase margin is read where the open-loop gain is 0 dB, the gain margin where the phase is −180°. Ziegler-Nichols uses the ultimate gain Ku and period Tu of the plant, computed from the phase of G. Plant parameters are plausible values, not those of a specific device.',
+        gainsT: 'Controller gains', tuneT: 'Automatic tunings', optT: 'Test',
+        zn: 'Ziegler-Nichols (PID)', znpi: 'Ziegler-Nichols (PI)', tl: 'Tyreus-Luyben (softer)', nos: 'ZN "some overshoot"', imc: 'IMC (λ = 200 s)', manual: 'Suggested manual tuning', ponly: 'P only',
+        noZN: 'Ziegler-Nichols does not apply: the plant phase never reaches −180°, so it cannot oscillate in closed loop with a simple gain.',
+        ku: 'Ultimate gain Ku', tu: 'Ultimate period Tu',
+        aw: 'Integrator anti-windup', dist: 'Disturbance', noise: 'Measurement noise', setp: 'Setpoint', N: 'Derivative filter N',
+        distMotor: 'load torque at t = 0.8 s', distInc: 'door open 2 min at t = 30 min', distAxis: 'load on the axis at t = 1.6 s',
+        kOs: 'Overshoot', kRise: 'Rise time', kSet: '2% settling time', kEss: 'Final error', kPm: 'Phase margin', kGm: 'Gain margin',
+        unstable: 'Unstable: the measurement diverges or oscillates without settling. Lower the gains.', lowPm: 'Low phase margin (< 30°): the response oscillates a lot, the tuning is fragile.',
+        bigOs: 'Large overshoot: dangerous for an incubator (the baby would get too hot) or an axis (impact at end of travel).',
+        sat: 'The command saturates part of the time: without anti-windup, the integrator grows and causes overshoot.',
+        ess: 'Steady-state error: without integral action, the measurement does not reach the setpoint exactly.',
+        good: 'Stable, well-damped response.', none: 'none', inf: '∞',
+      },
+    };
+    let lang = 'fr';
+    try { lang = localStorage.getItem('lang') || ((navigator.language || 'fr').toLowerCase().startsWith('fr') ? 'fr' : 'en'); } catch (e) {}
+    if (!T[lang]) lang = 'fr';
+    const t = (k) => T[lang][k];
+    const fmt = (v, d = 3) => (Number.isFinite(v) ? v.toLocaleString(lang === 'fr' ? 'fr-FR' : 'en-GB', { maximumFractionDigits: d, minimumFractionDigits: 0 }) : '—');
+    const sig = (v, n = 3) => (Number.isFinite(v) && v !== 0 ? fmt(+v.toPrecision(n), 12) : '0');
+    const kpi = (k, v, u, cls) => '<div class="kpi' + (cls ? ' ' + cls : '') + '"><dt>' + k + '</dt><dd>' + v + (u ? '<small>' + u + '</small>' : '') + '</dd></div>';
+    const C = { accent: '#c8102e', line: '#c9c9cc', warn: '#e0a458', grey: '#8a8a90', green: '#7fbf7f', violet: '#c77dba' };
+
+    // Réglages de départ, unités et échelles des curseurs (gains en échelle logarithmique)
+    const CFG = {
+      motor: { gains: { Kp: 0.05, Ki: 2, Kd: 0 }, base: { Kp: 0.05, Ki: 2, Kd: 1e-4 }, unit: 'rad/s', yName: 'ω', uUnit: 'V', tUnit: 's', tScale: 1, w: [0.1, 1e5], sp: [50, 400], manual: { Kp: 0.08, Ki: 3, Kd: 0 }, distKey: 'distMotor' },
+      incubator: { gains: { Kp: 0.5, Ki: 0.004, Kd: 0 }, base: { Kp: 0.5, Ki: 0.004, Kd: 10 }, unit: '°C', yName: 'T', uUnit: '%', uScale: 100, tUnit: 'min', tScale: 1 / 60, w: [1e-5, 1], sp: [30, 39], distKey: 'distInc' },
+      axis: { gains: { Kp: 12, Ki: 0, Kd: 0.5 }, base: { Kp: 20, Ki: 200, Kd: 0.4 }, unit: '°', yName: 'θ', uUnit: 'V', tUnit: 's', tScale: 1, w: [0.01, 1e4], sp: [10, 180], manual: { Kp: 12, Ki: 0, Kd: 0.5 }, distKey: 'distAxis' },
+    };
+    const st = { plant: 'motor', aw: true, dist: true, noise: 0, N: 10, setpoint: {}, gains: {}, on: {} };
+    Object.keys(CFG).forEach((k) => { st.gains[k] = { ...CFG[k].gains }; st.setpoint[k] = P.PLANTS[k].setpoint; st.on[k] = { Kp: CFG[k].gains.Kp > 0, Ki: CFG[k].gains.Ki > 0, Kd: CFG[k].gains.Kd > 0 }; if (!st.on[k].Ki) st.gains[k].Ki = CFG[k].base.Ki; if (!st.on[k].Kd) st.gains[k].Kd = CFG[k].base.Kd; });
+    let sim = null, ghost = null, met = null, mar = null, curve = null, ult = null, parts = null;
+    const gainsNow = () => { const g = st.gains[st.plant], on = st.on[st.plant]; return { Kp: on.Kp ? g.Kp : 0, Ki: on.Ki ? g.Ki : 0, Kd: on.Kd ? g.Kd : 0, N: st.N, antiWindup: st.aw }; };
+
+    // ---------- Panneaux ----------
+    function gainRow(box, key, label) {
+      const cfg = CFG[st.plant], g = st.gains[st.plant], on = st.on[st.plant];
+      const row = document.createElement('div'); row.className = 'ctl';
+      const id = 'g-' + key;
+      row.innerHTML = '<input type="checkbox" aria-label="' + label + '"><label for="' + id + '">' + label + '</label><output></output><input type="range" id="' + id + '" min="-2.5" max="2" step="0.01">';
+      const ck = row.querySelector('input[type=checkbox]'), r = row.querySelector('input[type=range]'), out = row.querySelector('output');
+      ck.checked = on[key];
+      const show = () => { out.textContent = on[key] ? sig(g[key], 3) : '0'; r.disabled = !on[key]; };
+      r.value = Math.log10(g[key] / cfg.base[key]);
+      r.addEventListener('input', () => { g[key] = cfg.base[key] * Math.pow(10, parseFloat(r.value)); show(); run(); });
+      ck.addEventListener('change', () => { on[key] = ck.checked; show(); run(); });
+      row.refresh = () => { r.value = Math.log10(g[key] / cfg.base[key]); ck.checked = on[key]; show(); };
+      show(); box.appendChild(row);
+      return row;
+    }
+    let gainRows = [];
+    function renderPanels() {
+      const gb = $('gainsPanel'); gb.innerHTML = '<h2>' + t('gainsT') + '</h2>'; gainRows = [];
+      gainRows.push(gainRow(gb, 'Kp', 'Kp'), gainRow(gb, 'Ki', 'Ki'), gainRow(gb, 'Kd', 'Kd'));
+      const tb = $('tunePanel'); tb.innerHTML = '<h2>' + t('tuneT') + '</h2>';
+      ult = P.ultimate(st.plant);
+      const pr = document.createElement('div'); pr.className = 'presets';
+      const add = (label, fn, dis) => { const b = document.createElement('button'); b.type = 'button'; b.className = 'btn'; b.textContent = label; b.disabled = !!dis; b.addEventListener('click', fn); pr.appendChild(b); };
+      const apply = (g) => { const s = st.gains[st.plant], on = st.on[st.plant]; ['Kp', 'Ki', 'Kd'].forEach((k) => { on[k] = g[k] > 0; if (g[k] > 0) s[k] = g[k]; }); gainRows.forEach((r) => r.refresh()); run(); };
+      ['zn', 'znpi', 'tl', 'nos'].forEach((k) => add(t(k), () => apply(P.tuning(k === 'znpi' ? 'zn-pi' : k, ult.Ku, ult.Tu)), !ult));
+      if (st.plant === 'incubator') { const p = P.PLANTS.incubator.p; add(t('imc'), () => apply(P.imcPI(p.K, p.tau, p.theta, 200))); }
+      if (CFG[st.plant].manual) add(t('manual'), () => apply(CFG[st.plant].manual));
+      add(t('ponly'), () => apply({ Kp: st.gains[st.plant].Kp, Ki: 0, Kd: 0 }));
+      tb.appendChild(pr);
+      const info = document.createElement('p'); info.className = 'hint';
+      info.textContent = ult ? t('ku') + ' = ' + sig(ult.Ku, 4) + ' ; ' + t('tu') + ' = ' + sig(ult.Tu * CFG[st.plant].tScale, 4) + ' ' + CFG[st.plant].tUnit : t('noZN');
+      tb.appendChild(info);
+      const ob = $('optPanel'); ob.innerHTML = '<h2>' + t('optT') + '</h2>';
+      const cfg = CFG[st.plant];
+      const sp = document.createElement('div'); sp.className = 'ctl';
+      sp.innerHTML = '<span></span><label for="o-sp">' + t('setp') + '</label><output></output><input type="range" id="o-sp">';
+      const r = sp.querySelector('input'); Object.assign(r, { min: cfg.sp[0], max: cfg.sp[1], step: (cfg.sp[1] - cfg.sp[0]) / 200 }); r.value = st.setpoint[st.plant];
+      const so = sp.querySelector('output'); const sshow = () => (so.textContent = fmt(st.setpoint[st.plant], 1) + ' ' + cfg.unit); sshow();
+      r.addEventListener('input', () => { st.setpoint[st.plant] = parseFloat(r.value); sshow(); run(); });
+      ob.appendChild(sp);
+      const ck = (key, label) => { const l = document.createElement('label'); l.className = 'ck'; l.innerHTML = '<input type="checkbox"> <span>' + label + '</span>'; const c = l.querySelector('input'); c.checked = st[key]; c.addEventListener('change', () => { st[key] = c.checked; run(); }); ob.appendChild(l); };
+      ck('aw', t('aw')); ck('dist', t('dist') + ' : ' + t(cfg.distKey));
+      const nz = document.createElement('div'); nz.className = 'ctl';
+      const nmax = st.plant === 'incubator' ? 0.3 : st.plant === 'motor' ? 5 : 1;
+      nz.innerHTML = '<span></span><label for="o-nz">' + t('noise') + '</label><output></output><input type="range" id="o-nz" min="0" max="' + nmax + '" step="' + nmax / 100 + '">';
+      const nr = nz.querySelector('input'), no = nz.querySelector('output'); nr.value = Math.min(st.noise, nmax);
+      const nshow = () => (no.textContent = '± ' + fmt(+nr.value, 2) + ' ' + cfg.unit); nshow();
+      nr.addEventListener('input', () => { st.noise = parseFloat(nr.value); nshow(); run(); });
+      ob.appendChild(nz);
+    }
+
+    // ---------- Graphiques ----------
+    function setupCanvas(cv) {
+      const dpr = window.devicePixelRatio || 1, w = cv.clientWidth, h = cv.clientHeight;
+      if (cv.width !== Math.round(w * dpr) || cv.height !== Math.round(h * dpr)) { cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr); }
+      const c = cv.getContext('2d'); c.setTransform(dpr, 0, 0, dpr, 0, 0);
+      return { c, w, h };
+    }
+    function niceStep(range, n) { const r = range / n, m = Math.pow(10, Math.floor(Math.log10(r))), q = r / m; return (q < 1.5 ? 1 : q < 3.5 ? 2 : q < 7.5 ? 5 : 10) * m; }
+    function plot(cv, series, opts = {}) {
+      const { c, w, h } = setupCanvas(cv);
+      c.fillStyle = '#0a0a0b'; c.fillRect(0, 0, w, h);
+      const padL = 50, padR = 8, padT = 8, padB = 20;
+      const all = series.flatMap((s) => s.pts).filter((p) => Number.isFinite(p[1]));
+      let xmin = opts.xmin ?? Math.min(...all.map((p) => p[0])), xmax = opts.xmax ?? Math.max(...all.map((p) => p[0]));
+      let ymin = opts.ymin, ymax = opts.ymax;
+      if (ymin === undefined || ymax === undefined) {
+        let lo = Math.min(...all.map((p) => p[1])), hi = Math.max(...all.map((p) => p[1]));
+        if (!Number.isFinite(lo)) { lo = -1; hi = 1; }
+        if (opts.clampY) { lo = Math.max(lo, opts.clampY[0]); hi = Math.min(hi, opts.clampY[1]); }
+        if (hi - lo < 1e-9) { hi += 1; lo -= 1; }
+        const m = (hi - lo) * 0.08; ymin = ymin ?? lo - m; ymax = ymax ?? hi + m;
+      }
+      const lx = opts.logX;
+      const X = (x) => padL + ((lx ? Math.log10(x) - Math.log10(xmin) : x - xmin) / (lx ? Math.log10(xmax) - Math.log10(xmin) : xmax - xmin)) * (w - padL - padR);
+      const Y = (y) => padT + (1 - (y - ymin) / (ymax - ymin)) * (h - padT - padB);
+      c.font = '10px "JetBrains Mono", monospace'; c.fillStyle = '#6c6c70'; c.strokeStyle = '#1e1e21'; c.lineWidth = 1;
+      const sy = niceStep(ymax - ymin, 4); c.textAlign = 'right'; c.textBaseline = 'middle';
+      for (let v = Math.ceil(ymin / sy) * sy; v <= ymax; v += sy) { c.beginPath(); c.moveTo(padL, Y(v)); c.lineTo(w - padR, Y(v)); c.stroke(); c.fillText(fmt(Math.abs(v) < sy / 1e6 ? 0 : v, 2), padL - 5, Y(v)); }
+      c.textAlign = 'center'; c.textBaseline = 'top';
+      if (lx) { for (let e = Math.ceil(Math.log10(xmin)); e <= Math.log10(xmax); e++) { const v = Math.pow(10, e); c.beginPath(); c.moveTo(X(v), padT); c.lineTo(X(v), h - padB); c.stroke(); c.fillText('1e' + e, X(v), h - padB + 4); } }
+      else { const sx = niceStep(xmax - xmin, 5); for (let v = Math.ceil(xmin / sx) * sx; v <= xmax; v += sx) { c.beginPath(); c.moveTo(X(v), padT); c.lineTo(X(v), h - padB); c.stroke(); c.fillText(fmt(Math.abs(v) < sx / 1e6 ? 0 : v, 2) + (opts.xunit || ''), X(v), h - padB + 4); } }
+      (opts.hlines || []).forEach((l) => { c.strokeStyle = l.color; c.setLineDash(l.dash || [4, 4]); c.beginPath(); c.moveTo(padL, Y(l.y)); c.lineTo(w - padR, Y(l.y)); c.stroke(); c.setLineDash([]); });
+      c.save(); c.beginPath(); c.rect(padL, padT, w - padL - padR, h - padT - padB); c.clip();
+      series.forEach((s) => {
+        c.strokeStyle = s.color; c.lineWidth = s.width || 1.6; c.setLineDash(s.dash || []);
+        c.beginPath(); let pen = false;
+        s.pts.forEach(([x, y]) => { if (!Number.isFinite(y)) { pen = false; return; } const yy = Math.max(ymin - (ymax - ymin), Math.min(ymax + (ymax - ymin), y)); if (pen) c.lineTo(X(x), Y(yy)); else { c.moveTo(X(x), Y(yy)); pen = true; } });
+        c.stroke(); c.setLineDash([]);
+      });
+      (opts.markers || []).forEach((m) => { c.strokeStyle = m.color; c.setLineDash([3, 3]); c.beginPath(); c.moveTo(X(m.x), padT); c.lineTo(X(m.x), h - padB); c.stroke(); c.setLineDash([]); if (m.label) { c.fillStyle = m.color; c.textAlign = 'left'; c.textBaseline = 'top'; c.fillText(m.label, X(m.x) + 4, padT + 2); } });
+      c.restore();
+    }
+    // échantillonnage pour l'affichage (au plus ~800 points)
+    const thin = (arrT, arrY, scaleT = 1, scaleY = 1) => { const n = arrT.length, k = Math.max(1, Math.floor(n / 800)), out = []; for (let i = 0; i < n; i += k) out.push([arrT[i] * scaleT, arrY[i] * scaleY]); return out; };
+
+    // ---------- Calcul ----------
+    function run() {
+      const key = st.plant, cfg = CFG[key], g = gainsNow();
+      sim = P.simulate(key, {}, { gains: g, setpoint: st.setpoint[key], dist: st.dist, noise: st.noise });
+      const stepAt = P.PLANTS[key].tEnd * 0.05, y0 = P.PLANTS[key].y0;
+      met = P.metrics(sim, stepAt, y0, st.setpoint[key], st.dist ? P.PLANTS[key].dist.t : undefined);
+      curve = P.bode(key, {}, g, cfg.w[0], cfg.w[1], 500);
+      mar = P.margins(curve);
+      // les trois actions séparées, recalculées sur l'erreur simulée
+      const Ts = P.PLANTS[key].Ts; let I = 0; parts = { P: [], I: [], D: [] };
+      const yF = []; let D = 0, yPrev = sim.y[0];
+      const Tf = g.Kp > 0 && g.Kd > 0 ? g.Kd / (g.Kp * st.N) : 0;
+      for (let i = 0; i < sim.t.length; i++) {
+        const e = sim.r[i] - sim.y[i];
+        if (g.Kd > 0) D = (Tf * D - g.Kd * (sim.y[i] - yPrev)) / (Tf + Ts); yPrev = sim.y[i];
+        parts.P.push(g.Kp * e); parts.I.push(I); parts.D.push(D);
+        I += g.Ki * e * Ts;
+      }
+      draw(); replay();
+    }
+    function unstable() {
+      const y = sim.y, n = y.length, r = st.setpoint[st.plant], A = Math.abs(r - P.PLANTS[st.plant].y0) || 1;
+      if (y.some((v) => !Number.isFinite(v))) return true;
+      // dernier quart : oscillation forte ou écart énorme
+      const tail = y.slice(Math.floor(n * 0.75));
+      const span = Math.max(...tail) - Math.min(...tail);
+      return Math.max(...tail.map((v) => Math.abs(v - r))) > 3 * A || (span > 0.3 * A && !st.dist);
+    }
+    function draw() {
+      const key = st.plant, cfg = CFG[key], ts = cfg.tScale, us = cfg.uScale || 1;
+      const uns = unstable();
+      const pm = mar.pm, gm = mar.gm;
+      $('kpis').innerHTML =
+        kpi(t('kOs'), uns ? '—' : fmt(met.overshoot, 1), '%', !uns && met.overshoot > 20 ? 'bad' : '') +
+        kpi(t('kRise'), uns || met.rise == null ? '—' : fmt(met.rise * ts, 3), cfg.tUnit) +
+        kpi(t('kSet'), uns || met.settling == null ? '—' : fmt(met.settling * ts, 3), cfg.tUnit) +
+        kpi(t('kEss'), uns ? '—' : fmt(met.ess, 3), cfg.unit, !uns && Math.abs(met.ess) > 0.01 * Math.abs(st.setpoint[key]) ? 'bad' : '') +
+        kpi(t('kPm'), pm == null ? t('none') : fmt(pm, 1), pm == null ? '' : '°', pm != null && pm < 30 ? 'bad' : pm != null && pm >= 45 ? 'good' : '') +
+        kpi(t('kGm'), gm == null ? t('inf') : fmt(gm, 1), gm == null ? '' : 'dB', gm != null && gm < 6 ? 'bad' : '');
+      const iss = [];
+      if (uns || (pm != null && pm < 0)) iss.push(['err', t('unstable')]);
+      else {
+        if (pm != null && pm < 30) iss.push(['warn', t('lowPm')]);
+        if (met.overshoot > 15 && key !== 'motor') iss.push(['warn', t('bigOs')]);
+        const satFrac = sim.u.filter((u) => Math.abs(u - P.PLANTS[key].p.umax) < 1e-9 || Math.abs(u - P.PLANTS[key].p.umin) < 1e-9).length / sim.u.length;
+        if (satFrac > 0.05 && !st.aw && gainsNow().Ki > 0) iss.push(['warn', t('sat')]);
+        if (!st.on[key].Ki && Math.abs(met.ess) > 0.01 * Math.abs(st.setpoint[key])) iss.push(['warn', t('ess')]);
+        if (!iss.length) iss.push(['good', t('good')]);
+      }
+      $('issues').innerHTML = iss.map(([lv, m]) => (lv === 'good' ? '<li class="good">' + m + '</li>' : '<li class="' + lv + '"><span class="lv">!</span><span>' + m + '</span></li>')).join('');
+      const tEnd = P.PLANTS[key].tEnd * ts;
+      const ser = [];
+      if (ghost && ghost.plant === key) ser.push({ pts: ghost.pts, color: '#6c6c70', width: 1.4 });
+      ser.push({ pts: thin(sim.t, sim.r, ts), color: C.line, width: 1.2, dash: [5, 4] }, { pts: thin(sim.t, sim.y, ts), color: C.accent });
+      const r = st.setpoint[key], y0 = P.PLANTS[key].y0;
+      const distM = st.dist ? [{ x: P.PLANTS[key].dist.t * ts, color: '#4a4a4e' }] : [];
+      plot($('chY'), ser, { xmin: 0, xmax: tEnd, xunit: ' ' + cfg.tUnit, clampY: [Math.min(y0, r) - Math.abs(r - y0), Math.max(y0, r) + Math.abs(r - y0)], markers: distM.concat(replayT !== null ? [{ x: replayT * ts, color: C.warn }] : []) });
+      const p = P.PLANTS[key].p;
+      plot($('chU'), [{ pts: thin(sim.t, sim.u, ts, us), color: C.warn, width: 1.3 }], { xmin: 0, xmax: tEnd, xunit: ' ' + cfg.tUnit, ymin: p.umin * us - 0.1 * (p.umax - p.umin) * us, ymax: p.umax * us + 0.1 * (p.umax - p.umin) * us, hlines: [{ y: p.umin * us, color: '#4a4a4e' }, { y: p.umax * us, color: '#4a4a4e' }] });
+      plot($('chPID'), [{ pts: thin(sim.t, parts.P, ts, us), color: C.accent, width: 1.2 }, { pts: thin(sim.t, parts.I, ts, us), color: C.green, width: 1.2 }, { pts: thin(sim.t, parts.D, ts, us), color: C.violet, width: 1.2 }], { xmin: 0, xmax: tEnd, xunit: ' ' + cfg.tUnit, clampY: [p.umin * us * 3, p.umax * us * 3] });
+      const wc = mar.wc ? [{ x: mar.wc, color: C.warn, label: 'ωc' }] : [];
+      plot($('chMag'), [{ pts: curve.map((q) => [q.w, q.magG]), color: C.grey, width: 1.2 }, { pts: curve.map((q) => [q.w, q.mag]), color: C.accent }], { logX: true, xmin: cfg.w[0], xmax: cfg.w[1], hlines: [{ y: 0, color: '#4a4a4e' }], markers: wc, clampY: [-120, 120] });
+      plot($('chPh'), [{ pts: curve.map((q) => [q.w, q.phG]), color: C.grey, width: 1.2 }, { pts: curve.map((q) => [q.w, q.ph]), color: C.accent }], { logX: true, xmin: cfg.w[0], xmax: cfg.w[1], hlines: [{ y: -180, color: '#4a4a4e' }], markers: wc, clampY: [-540, 90] });
+      // légende PID (dans le titre du graphique)
+      drawScene();
+    }
+
+    // ---------- Animation du système (rejoue la simulation) ----------
+    let replayT = null, raf = null, angle = 0;
+    function replay() {
+      if (raf) cancelAnimationFrame(raf);
+      const key = st.plant, tEnd = P.PLANTS[key].tEnd, dur = 6;
+      let start = null;
+      const tick = (ts) => {
+        if (start === null) start = ts;
+        const u = Math.min(1, (ts - start) / 1000 / dur);
+        replayT = u * tEnd;
+        drawScene(); drawMarkerOnly();
+        if (u < 1) raf = requestAnimationFrame(tick); else { raf = null; }
+      };
+      raf = requestAnimationFrame(tick);
+    }
+    let lastMarker = 0;
+    function drawMarkerOnly() { const now = performance.now(); if (now - lastMarker > 120) { lastMarker = now; draw(); } }
+    function idxAt(tt) { const Ts = P.PLANTS[st.plant].Ts; return Math.max(0, Math.min(sim.t.length - 1, Math.round(tt / Ts))); }
+    function drawScene() {
+      const cv = $('scene'), { c, w, h } = setupCanvas(cv);
+      c.fillStyle = '#0a0a0b'; c.fillRect(0, 0, w, h);
+      if (!sim) return;
+      const key = st.plant, cfg = CFG[key], i = idxAt(replayT === null ? P.PLANTS[key].tEnd : replayT);
+      const y = sim.y[i], u = sim.u[i], r = sim.r[i], dOn = sim.d[i];
+      c.font = '11px "JetBrains Mono", monospace'; c.textAlign = 'center';
+      if (key === 'motor') {
+        // disque qui tourne à la vitesse simulée (ralentie pour rester lisible)
+        const cxp = w / 2, cyp = h / 2 - 10, R = Math.min(w, h) * 0.3;
+        angle += (y / 400) * 0.35;
+        c.fillStyle = '#26262a'; c.fillRect(cxp - R - 26, cyp - 18, 26, 36);
+        c.strokeStyle = '#c9c9cc'; c.lineWidth = 3; c.beginPath(); c.arc(cxp, cyp, R, 0, Math.PI * 2); c.stroke();
+        for (let k = 0; k < 6; k++) { const a = angle + (k * Math.PI) / 3; c.beginPath(); c.moveTo(cxp, cyp); c.lineTo(cxp + R * Math.cos(a), cyp + R * Math.sin(a)); c.stroke(); }
+        c.fillStyle = C.accent; c.beginPath(); c.arc(cxp + R * Math.cos(angle), cyp + R * Math.sin(angle), 6, 0, Math.PI * 2); c.fill();
+        if (dOn) { c.fillStyle = C.warn; c.fillText(lang === 'fr' ? 'charge' : 'load', cxp, cyp + R + 18); }
+        c.fillStyle = '#c9c9cc'; c.fillText('ω = ' + fmt(y, 0) + ' rad/s (' + fmt((y * 60) / (2 * Math.PI), 0) + ' tr/min)', cxp, h - 26);
+        c.fillStyle = '#9b9b9f'; c.fillText('U = ' + fmt(u, 1) + ' V', cxp, h - 10);
+      } else if (key === 'incubator') {
+        const bx = w * 0.12, by = h * 0.2, bw = w * 0.56, bh = h * 0.5;
+        // coque de la couveuse
+        c.strokeStyle = '#c9c9cc'; c.lineWidth = 2; c.beginPath(); c.moveTo(bx, by + bh); c.lineTo(bx, by + 18); c.quadraticCurveTo(bx + bw / 2, by - 18, bx + bw, by + 18); c.lineTo(bx + bw, by + bh); c.closePath(); c.stroke();
+        c.fillStyle = 'rgba(200,16,46,' + (0.08 + 0.35 * Math.max(0, Math.min(1, (y - 22) / 16))) + ')'; c.fill();
+        c.fillStyle = '#26262a'; c.fillRect(bx - 6, by + bh, bw + 12, 10);
+        if (dOn) { c.strokeStyle = C.warn; c.setLineDash([4, 3]); c.beginPath(); c.moveTo(bx + bw, by + 18); c.lineTo(bx + bw + 30, by + 4); c.stroke(); c.setLineDash([]); c.fillStyle = C.warn; c.fillText(lang === 'fr' ? 'porte ouverte' : 'door open', bx + bw / 2, by + bh + 26); }
+        // résistance chauffante
+        c.strokeStyle = u > 0.01 ? C.accent : '#4a4a4e'; c.lineWidth = 2; c.beginPath();
+        for (let k = 0; k <= 12; k++) { const x = bx + 14 + (k * (bw - 28)) / 12, yy = by + bh - 10 + (k % 2 ? -5 : 5); if (k) c.lineTo(x, yy); else c.moveTo(x, yy); } c.stroke();
+        // thermomètre
+        const tx = w * 0.82, ty = h * 0.12, th = h * 0.62, f = Math.max(0, Math.min(1, (y - 20) / 20));
+        c.strokeStyle = '#c9c9cc'; c.lineWidth = 1.5; c.strokeRect(tx - 7, ty, 14, th);
+        c.fillStyle = C.accent; c.fillRect(tx - 5, ty + th * (1 - f), 10, th * f);
+        const fr = (r - 20) / 20; c.strokeStyle = C.line; c.setLineDash([3, 3]); c.beginPath(); c.moveTo(tx - 16, ty + th * (1 - fr)); c.lineTo(tx + 16, ty + th * (1 - fr)); c.stroke(); c.setLineDash([]);
+        c.fillStyle = '#c9c9cc'; c.fillText(fmt(y, 1) + ' °C', tx, ty + th + 18);
+        c.fillStyle = '#9b9b9f'; c.fillText((lang === 'fr' ? 'chauffe ' : 'heating ') + fmt(u * 100, 0) + ' %', bx + bw / 2, h - 10);
+      } else {
+        const px = w / 2, py = h * 0.72, L = Math.min(w * 0.4, h * 0.55), a = (y * Math.PI) / 180, ar = (r * Math.PI) / 180;
+        c.strokeStyle = '#2a2a2e'; c.lineWidth = 1; c.beginPath(); c.arc(px, py, L + 10, Math.PI, 2 * Math.PI); c.stroke();
+        c.strokeStyle = C.line; c.setLineDash([4, 4]); c.beginPath(); c.moveTo(px, py); c.lineTo(px + (L + 10) * Math.cos(ar), py - (L + 10) * Math.sin(ar)); c.stroke(); c.setLineDash([]);
+        c.fillStyle = '#26262a'; c.fillRect(px - 26, py, 52, 16);
+        c.strokeStyle = '#c9c9cc'; c.lineWidth = 12; c.lineCap = 'round'; c.beginPath(); c.moveTo(px, py); c.lineTo(px + L * Math.cos(a), py - L * Math.sin(a)); c.stroke();
+        c.fillStyle = '#121214'; c.beginPath(); c.arc(px, py, 10, 0, Math.PI * 2); c.fill(); c.strokeStyle = C.accent; c.lineWidth = 2.5; c.stroke();
+        if (dOn) { c.fillStyle = C.warn; c.beginPath(); c.arc(px + L * Math.cos(a), py - L * Math.sin(a), 9, 0, Math.PI * 2); c.fill(); }
+        c.fillStyle = '#c9c9cc'; c.fillText('θ = ' + fmt(y, 1) + '°', px, h - 26);
+        c.fillStyle = '#9b9b9f'; c.fillText('U = ' + fmt(u, 1) + ' V', px, h - 10);
+      }
+      c.fillStyle = '#6c6c70'; c.textAlign = 'left'; c.fillText('t = ' + fmt((replayT === null ? P.PLANTS[key].tEnd : replayT) * cfg.tScale, 2) + ' ' + cfg.tUnit, 8, 14);
+    }
+
+    // ---------- Commandes ----------
+    $('play').addEventListener('click', replay);
+    $('freeze').addEventListener('click', () => {
+      if (ghost && ghost.plant === st.plant) { ghost = null; $('freeze').textContent = t('freeze'); }
+      else { ghost = { plant: st.plant, pts: thin(sim.t, sim.y, CFG[st.plant].tScale) }; $('freeze').textContent = t('unfreeze'); }
+      draw();
+    });
+    function setPlant(k) {
+      st.plant = k; replayT = null;
+      document.querySelectorAll('.tab').forEach((b) => b.setAttribute('aria-selected', b.dataset.plant === k));
+      $('freeze').textContent = ghost && ghost.plant === k ? t('unfreeze') : t('freeze');
+      renderPanels(); run();
+      try { history.replaceState(null, '', '#' + k); } catch (e) {}
+    }
+    document.querySelectorAll('.tab').forEach((b) => b.addEventListener('click', () => setPlant(b.dataset.plant)));
+    function setLang(l) {
+      lang = l; document.documentElement.lang = l;
+      document.querySelectorAll('[data-t]').forEach((el) => { const v = T[l][el.dataset.t]; if (typeof v === 'string') el.textContent = v; });
+      document.querySelectorAll('.lang button').forEach((b) => b.setAttribute('aria-pressed', b.dataset.lang === l));
+      try { localStorage.setItem('lang', l); } catch (e) {}
+      $('freeze').textContent = ghost && ghost.plant === st.plant ? t('unfreeze') : t('freeze');
+      renderPanels(); run();
+    }
+    document.querySelectorAll('.lang button').forEach((b) => b.addEventListener('click', () => setLang(b.dataset.lang)));
+    const h0 = (location.hash || '').slice(1);
+    if (CFG[h0]) st.plant = h0;
+    document.querySelectorAll('.tab').forEach((b) => b.setAttribute('aria-selected', b.dataset.plant === st.plant));
+    setLang(lang);
+    new ResizeObserver(() => { if (sim) draw(); }).observe($('scene'));
+  })();
+  </script>
+</body>
+</html>
