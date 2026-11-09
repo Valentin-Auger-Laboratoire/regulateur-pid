@@ -83,8 +83,8 @@
     <div class="top">
       <a class="back" href="https://valentin-auger-laboratoire.github.io/portfolio/#projets" data-t="back">← Retour au portfolio</a>
       <div class="lang" role="group" aria-label="Langue / Language">
-        <button type="button" data-lang="fr" aria-pressed="true">FR</button>
         <button type="button" data-lang="en" aria-pressed="false">EN</button>
+        <button type="button" data-lang="fr" aria-pressed="true">FR</button>
       </div>
     </div>
     <p class="eyebrow" data-t="eyebrow">Outil d'automatique · régulation PID</p>
@@ -181,8 +181,8 @@
         good: 'Stable, well-damped response.', none: 'none', inf: '∞',
       },
     };
-    let lang = 'fr';
-    try { lang = localStorage.getItem('lang') || ((navigator.language || 'fr').toLowerCase().startsWith('fr') ? 'fr' : 'en'); } catch (e) {}
+    let lang = 'en';
+    try { lang = (localStorage.getItem('langChoix') === 'fr' ? 'fr' : 'en'); } catch (e) {}
     if (!T[lang]) lang = 'fr';
     const t = (k) => T[lang][k];
     const fmt = (v, d = 3) => (Number.isFinite(v) ? v.toLocaleString(lang === 'fr' ? 'fr-FR' : 'en-GB', { maximumFractionDigits: d, minimumFractionDigits: 0 }) : '—');
@@ -451,7 +451,7 @@
       lang = l; document.documentElement.lang = l;
       document.querySelectorAll('[data-t]').forEach((el) => { const v = T[l][el.dataset.t]; if (typeof v === 'string') el.textContent = v; });
       document.querySelectorAll('.lang button').forEach((b) => b.setAttribute('aria-pressed', b.dataset.lang === l));
-      try { localStorage.setItem('lang', l); } catch (e) {}
+      try { localStorage.setItem('lang', l); localStorage.setItem('langChoix', l); } catch (e) {}
       $('freeze').textContent = ghost && ghost.plant === st.plant ? t('unfreeze') : t('freeze');
       renderPanels(); run();
     }
